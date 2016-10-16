@@ -7,16 +7,16 @@
 
     or in the "license" file accompanying this file. This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
  */
-package scorekeeper;
+package medtracker;
 
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 
-import scorekeeper.storage.ScoreKeeperDao;
-import scorekeeper.storage.ScoreKeeperDynamoDbClient;
-import scorekeeper.storage.ScoreKeeperGame;
-import scorekeeper.storage.ScoreKeeperGameData;
+import medtracker.storage.MedTrackerDao;
+import medtracker.storage.MedTrackerDynamoDbClient;
+import medtracker.storage.MedTrackerPatient;
+import medtracker.storage.MedTrackerPatientData;
 
 import com.amazon.speech.slu.Intent;
 import com.amazon.speech.speechlet.LaunchRequest;
@@ -29,31 +29,24 @@ import com.amazon.speech.ui.SimpleCard;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 
 /**
- * The {@link ScoreKeeperManager} receives various events and intents and manages the flow of the
- * game.
+ * The {@link MedTrackerManager} receives various events and intents and manages the flow of the
+ * patient.
  */
-public class ScoreKeeperManager {
+public class MedTrackerManager {
     /**
-     * Intent slot for player name.
+     * Intent slot for User name.
      */
-    private static final String SLOT_PLAYER_NAME = "PlayerName";
-
-    /**
-     * Intent slot for player score.
-     */
-    private static final String SLOT_SCORE_NUMBER = "ScoreNumber";
+    private static final String SLOT_USER_NAME = "UserName";
 
     /**
-     * Maximum number of players for which scores must be announced while adding a score.
+     * PROBABLY NEED TO HOLD MEDS AS A FIELD IN A LIST OF SOME FORM
      */
-    private static final int MAX_PLAYERS_FOR_SPEECH = 3;
 
-    private final ScoreKeeperDao scoreKeeperDao;
+    private final MedTrackerDao medTrackerDao;
 
-    public ScoreKeeperManager(final AmazonDynamoDBClient amazonDynamoDbClient) {
-        ScoreKeeperDynamoDbClient dynamoDbClient =
-                new ScoreKeeperDynamoDbClient(amazonDynamoDbClient);
-        scoreKeeperDao = new ScoreKeeperDao(dynamoDbClient);
+    public MedTrackerManager(final AmazonDynamoDBClient amazonDynamoDbClient) {
+        MedTrackerDynamoDbClient dynamoDbClient = new MedTrackerDynamoDbClient(amazonDynamoDbClient);
+        medTrackerDao = new MedTrackerDao(dynamoDbClient);
     }
 
     /**
@@ -69,50 +62,46 @@ public class ScoreKeeperManager {
         // Speak welcome message and ask user questions
         // based on whether there are players or not.
         String speechText, repromptText;
-        ScoreKeeperGame game = scoreKeeperDao.getScoreKeeperGame(session);
+        MedTrackerPatient patient = medTrackerDao.getMedTrackerPatient(session);
 
-        if (game == null || !game.hasPlayers()) {
-            speechText = "ScoreKeeper, Let's start your game. Who's your first player?";
-            repromptText = "Please tell me who is your first player?";
-        } else if (!game.hasScores()) {
-            speechText =
-                    "ScoreKeeper, you have " + game.getNumberOfPlayers()
-                            + (game.getNumberOfPlayers() == 1 ? " player" : " players")
-                            + " in the game. You can give a player points, add another player,"
-                            + " reset all players or exit. Which would you like?";
-            repromptText = ScoreKeeperTextUtil.COMPLETE_HELP;
-        } else {
-            speechText = "ScoreKeeper, What can I do for you?";
-            repromptText = ScoreKeeperTextUtil.NEXT_HELP;
+        // DO SET UP IF FIRST TIME 
+        if (patient == null) {
+            speechText = "This is MedTracker, What is your name?";
+            repromptText = "Please tell me what your name is?";
+            
+        //GET MESSAGES ON LAUNCH TO GO HERE    
+        } else {	
+            speechText = "MedTracker, What can I do for you?";
+            repromptText = MedTrackerTextUtil.NEXT_HELP;
         }
 
         return getAskSpeechletResponse(speechText, repromptText);
     }
 
     /**
-     * Creates and returns response for the new game intent.
+     * Creates and returns response for the new patient intent.
      *
      * @param session
      *            {@link Session} for the request
      * @param skillContext
      *            {@link SkillContext} for this request
-     * @return response for the new game intent.
+     * @return response for the new patient intent.
      */
-    public SpeechletResponse getNewGameIntentResponse(Session session, SkillContext skillContext) {
-        ScoreKeeperGame game = scoreKeeperDao.getScoreKeeperGame(session);
+    public SpeechletResponse getNewPatientIntentResponse(Session session, SkillContext skillContext) {
+        MedTrackerPatient patient = medTrackerDao.getMedTrackerPatient(session);
 
-        if (game == null) {
-            return getAskSpeechletResponse("New game started. Who's your first player?",
+        if (patient == null) {
+            return getAskSpeechletResponse("New patient started. Who's your first player?",
                     "Please tell me who\'s your first player?");
         }
 
-        // Reset current game
-        game.resetScores();
-        scoreKeeperDao.saveScoreKeeperGame(game);
+        // Reset current patient
+        patient.resetScores();
+        medTrackerDao.saveMedTrackerPatient(patient);
 
         String speechText =
-                "New game started with " + game.getNumberOfPlayers() + " existing player"
-                        + (game.getNumberOfPlayers() != 1 ? "" : "s") + ".";
+                "New patient started with " + patient.getNumberOfPlayers() + " existing player"
+                        + (patient.getNumberOfPlayers() != 1 ? "" : "s") + ".";
 
         if (skillContext.needsMoreHelp()) {
             String repromptText =
@@ -137,38 +126,38 @@ public class ScoreKeeperManager {
      */
     public SpeechletResponse getAddPlayerIntentResponse(Intent intent, Session session,
             SkillContext skillContext) {
-        // add a player to the current game,
+        // add a player to the current patient,
         // terminate or continue the conversation based on whether the intent
         // is from a one shot command or not.
         String newPlayerName =
-                ScoreKeeperTextUtil.getPlayerName(intent.getSlot(SLOT_PLAYER_NAME).getValue());
+                MedTrackerTextUtil.getPlayerName(intent.getSlot(SLOT_PLAYER_NAME).getValue());
         if (newPlayerName == null) {
             String speechText = "OK. Who do you want to add?";
             return getAskSpeechletResponse(speechText, speechText);
         }
 
-        // Load the previous game
-        ScoreKeeperGame game = scoreKeeperDao.getScoreKeeperGame(session);
-        if (game == null) {
-            game = ScoreKeeperGame.newInstance(session, ScoreKeeperGameData.newInstance());
+        // Load the previous patient
+        MedTrackerPatient patient = medTrackerDao.getMedTrackerPatient(session);
+        if (patient == null) {
+            patient = MedTrackerPatient.newInstance(session, MedTrackerPatientData.newInstance());
         }
 
-        game.addPlayer(newPlayerName);
+        patient.addPlayer(newPlayerName);
 
-        // Save the updated game
-        scoreKeeperDao.saveScoreKeeperGame(game);
+        // Save the updated patient
+        medTrackerDao.saveMedTrackerPatient(patient);
 
-        String speechText = newPlayerName + " has joined your game. ";
+        String speechText = newPlayerName + " has joined your patient. ";
         String repromptText = null;
 
         if (skillContext.needsMoreHelp()) {
-            if (game.getNumberOfPlayers() == 1) {
+            if (patient.getNumberOfPlayers() == 1) {
                 speechText += "You can say, I am done adding players. Now who's your next player?";
 
             } else {
                 speechText += "Who is your next player?";
             }
-            repromptText = ScoreKeeperTextUtil.NEXT_HELP;
+            repromptText = MedTrackerTextUtil.NEXT_HELP;
         }
 
         if (repromptText != null) {
@@ -192,7 +181,7 @@ public class ScoreKeeperManager {
     public SpeechletResponse getAddScoreIntentResponse(Intent intent, Session session,
             SkillContext skillContext) {
         String playerName =
-                ScoreKeeperTextUtil.getPlayerName(intent.getSlot(SLOT_PLAYER_NAME).getValue());
+                MedTrackerTextUtil.getPlayerName(intent.getSlot(SLOT_PLAYER_NAME).getValue());
         if (playerName == null) {
             String speechText = "Sorry, I did not hear the player name. Please say again?";
             return getAskSpeechletResponse(speechText, speechText);
@@ -206,33 +195,33 @@ public class ScoreKeeperManager {
             return getAskSpeechletResponse(speechText, speechText);
         }
 
-        ScoreKeeperGame game = scoreKeeperDao.getScoreKeeperGame(session);
-        if (game == null) {
-            return getTellSpeechletResponse("A game has not been started. Please say New Game to "
-                    + "start a new game before adding scores.");
+        MedTrackerPatient patient = medTrackerDao.getMedTrackerPatient(session);
+        if (patient == null) {
+            return getTellSpeechletResponse("A patient has not been started. Please say New Patient to "
+                    + "start a new patient before adding scores.");
         }
-
-        if (game.getNumberOfPlayers() == 0) {
-            String speechText = "Sorry, no player has joined the game yet. What can I do for you?";
             return getAskSpeechletResponse(speechText, speechText);
         }
 
         // Update score
-        if (!game.addScoreForPlayer(playerName, score)) {
-            String speechText = "Sorry, " + playerName + " has not joined the game. What else?";
+        if (!patient.addScoreForPlayer(playerName, score)) {
+            String speechText = "Sorry, " + playerName + " has not joined the patient. What else?";
             return getAskSpeechletResponse(speechText, speechText);
         }
 
-        // Save game
-        scoreKeeperDao.saveScoreKeeperGame(game);
+        // Save patient
+        medTrackerDao.saveMedTrackerPatient(patient);
 
-        // Prepare speech text. If the game has less than 3 players, skip reading scores for each
+        // Prepare speech text. If the patient has less than 3 players, skip reading scores for each
         // player for brevity.
         String speechText = score + " for " + playerName + ". ";
-        if (game.getNumberOfPlayers() > MAX_PLAYERS_FOR_SPEECH) {
-            speechText += playerName + " has " + game.getScoreForPlayer(playerName) + " in total.";
+
+        if (patient.getNumberOfPlayers() == 0) {
+            String speechText = "Sorry, no player has joined the patient yet. What can I do for you?";
+        if (patient.getNumberOfPlayers() > MAX_PLAYERS_FOR_SPEECH) {
+            speechText += playerName + " has " + patient.getScoreForPlayer(playerName) + " in total.";
         } else {
-            speechText += getAllScoresAsSpeechText(game.getAllScoresInDescndingOrder());
+            speechText += getAllScoresAsSpeechText(patient.getAllScoresInDescndingOrder());
         }
 
         return getTellSpeechletResponse(speechText);
@@ -249,13 +238,13 @@ public class ScoreKeeperManager {
      */
     public SpeechletResponse getTellScoresIntentResponse(Intent intent, Session session) {
         // tells the scores in the leaderboard and send the result in card.
-        ScoreKeeperGame game = scoreKeeperDao.getScoreKeeperGame(session);
+        MedTrackerPatient patient = medTrackerDao.getMedTrackerPatient(session);
 
-        if (game == null || !game.hasPlayers()) {
-            return getTellSpeechletResponse("Nobody has joined the game.");
+        if (patient == null || !patient.hasPlayers()) {
+            return getTellSpeechletResponse("Nobody has joined the patient.");
         }
 
-        SortedMap<String, Long> sortedScores = game.getAllScoresInDescndingOrder();
+        SortedMap<String, Long> sortedScores = patient.getAllScoresInDescndingOrder();
         String speechText = getAllScoresAsSpeechText(sortedScores);
         Card leaderboardScoreCard = getLeaderboardScoreCard(sortedScores);
 
@@ -276,11 +265,11 @@ public class ScoreKeeperManager {
      */
     public SpeechletResponse getResetPlayersIntentResponse(Intent intent, Session session) {
         // Remove all players
-        ScoreKeeperGame game =
-                ScoreKeeperGame.newInstance(session, ScoreKeeperGameData.newInstance());
-        scoreKeeperDao.saveScoreKeeperGame(game);
+        MedTrackerPatient patient =
+                MedTrackerPatient.newInstance(session, MedTrackerPatientData.newInstance());
+        medTrackerDao.saveMedTrackerPatient(patient);
 
-        String speechText = "New game started without players. Who do you want to add first?";
+        String speechText = "New patient started without players. Who do you want to add first?";
         return getAskSpeechletResponse(speechText, speechText);
     }
 
@@ -298,9 +287,9 @@ public class ScoreKeeperManager {
     public SpeechletResponse getHelpIntentResponse(Intent intent, Session session,
             SkillContext skillContext) {
         return skillContext.needsMoreHelp() ? getAskSpeechletResponse(
-                ScoreKeeperTextUtil.COMPLETE_HELP + " So, how can I help?",
-                ScoreKeeperTextUtil.NEXT_HELP)
-                : getTellSpeechletResponse(ScoreKeeperTextUtil.COMPLETE_HELP);
+                MedTrackerTextUtil.COMPLETE_HELP + " So, how can I help?",
+                MedTrackerTextUtil.NEXT_HELP)
+                : getTellSpeechletResponse(MedTrackerTextUtil.COMPLETE_HELP);
     }
 
     /**
@@ -317,7 +306,7 @@ public class ScoreKeeperManager {
     public SpeechletResponse getExitIntentResponse(Intent intent, Session session,
             SkillContext skillContext) {
         return skillContext.needsMoreHelp() ? getTellSpeechletResponse("Okay. Whenever you're "
-                + "ready, you can start giving points to the players in your game.")
+                + "ready, you can start giving points to the players in your patient.")
                 : getTellSpeechletResponse("");
     }
 
@@ -397,13 +386,13 @@ public class ScoreKeeperManager {
     }
 
     /**
-     * Creates and returns a {@link Card} with a formatted text containing all scores in the game.
+     * Creates and returns a {@link Card} with a formatted text containing all scores in the patient.
      * The order of the entries in the text is determined by the order of entries in
      * {@link Map#entrySet()}.
      *
      * @param scores
      *            A {@link Map} of scores
-     * @return leaderboard text containing all scores in the game
+     * @return leaderboard text containing all scores in the patient
      */
     private Card getLeaderboardScoreCard(Map<String, Long> scores) {
         StringBuilder leaderboard = new StringBuilder();
