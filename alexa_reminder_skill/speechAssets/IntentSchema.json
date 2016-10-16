@@ -4,20 +4,13 @@
       "intent": "DidITakePresIntent",
       "slots": [
         {
-          "name": "PlayerName",
-          "type": "LIST_OF_PLAYER_NAMES"
+          "name": "Prescription",
+          "type": "LIST_OF_PRESCRIPTIONS"
         },
-        {
-          "name": "ScoreNumber",
-          "type": "AMAZON.NUMBER"
-        }
       ]
     },
     {
-      "intent": "WhatPresToTakeIntent"
-    },
-    {
-      "intent": "GeneralHelpIntent"
+      "intent": "WhatPrescripIntent"
     },
     {
       "intent": "AMAZON.HelpIntent"
