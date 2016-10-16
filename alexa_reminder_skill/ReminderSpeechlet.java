@@ -108,10 +108,10 @@ public class ReminderSpeechlet implements Speechlet {
 
         Intent intent = request.getIntent();
         if ("DidITakePresIntent".equals(intent.getName())) {
-            return reminderManager.getNewGameIntentResponse(session, skillContext);
+            return reminderManager.getDidITakePresIntentResponse(session, skillContext);
 
         } else if ("WhatPrescripIntent".equals(intent.getName())) {
-            return reminderManager.getAddPlayerIntentResponse(intent, session, skillContext);
+            return reminderManager.getWhatPrescripIntentResponse(intent, session, skillContext);
 
         } else if ("AMAZON.HelpIntent".equals(intent.getName())) {
             return reminderManager.getHelpIntentResponse(intent, session, skillContext);
