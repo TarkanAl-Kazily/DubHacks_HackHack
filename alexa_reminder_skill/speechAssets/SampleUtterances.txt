@@ -1,0 +1,5 @@
+DidITakePresIntent did I take {Prescription}
+DidITakePresIntent did I take {Prescription} today
+DidITakePresIntent did I use {Prescription}
+DidITakePresIntent did I do {Prescription}
+WhatPrescripIntent what do I have to take

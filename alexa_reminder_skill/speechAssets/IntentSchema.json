@@ -1,0 +1,25 @@
+{
+  "intents": [
+    {
+      "intent": "DidITakePresIntent",
+      "slots": [
+        {
+          "name": "Prescription",
+          "type": "LIST_OF_PRESCRIPTIONS"
+        },
+      ]
+    },
+    {
+      "intent": "WhatPrescripIntent"
+    },
+    {
+      "intent": "AMAZON.HelpIntent"
+    },
+    {
+      "intent": "AMAZON.StopIntent"
+    },
+    {
+      "intent": "AMAZON.CancelIntent"
+    }
+  ]
+}
